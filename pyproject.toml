@@ -1,0 +1,128 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pf"
+version = "1.0.0"
+description = ""
+license = "Apache-2.0"
+dependencies = [
+    # Pinned: the app uses the 1.11-1.13 simulation API (RecordSet,
+    # ParametersRecord, MetricsRecord, array_from_numpy) and `flwr run . <fed>`
+    # simulation federations. Flower 1.14+ renamed these and switched `flwr run`
+    # to the SuperLink deployment runtime, which breaks this code.
+    "flwr[simulation]==1.13.1",
+    "flwr-datasets[vision]==0.5.0",
+    # click 8.2+ breaks typer 0.12.5 (which flwr 1.13.1 pins): "Secondary flag
+    # is not valid for non-boolean flag". Hold click at the last 8.1.x.
+    "click==8.1.7",
+    # torch 2.2.1 is compiled against NumPy 1.x; NumPy 2.x => "Numpy is not
+    # available" at the first .numpy() call. Hold NumPy at the last 1.x.
+    "numpy==1.26.4",
+    "torch==2.2.1",
+    "torchvision==0.17.1",
+    "wandb==0.17.8",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+
+[tool.flwr.app]
+publisher = "user"
+
+[tool.flwr.app.components]
+serverapp = "pf.server_app:app"
+clientapp = "pf.client_app:app"
+
+[tool.flwr.app.config]
+num-server-rounds = 1000
+fraction-fit = 0.9
+fraction-evaluate = 0.9
+local-epochs = 5
+# Device for the server's CENTRALIZED evaluation only (client training always
+# uses each client's own GPU slice). "auto"/"cuda" -> GPU when the driver can
+# see one, else CPU (resolved + guarded in server_app._resolve_server_device).
+# On Gadi gpuvolta this cuts the per-round eval cost sharply for VGG/CIFAR-10.
+server-device = "auto"
+use-wandb = false
+
+# ---- Experiment knobs (all overridable via `flwr run ... --run-config`) ----
+# Dataset / model
+dataset = "mnist"          # mnist | fmnist | cifar10
+model = ""                 # "" = auto per dataset (lenet for MNIST/FMNIST, vgg11 for CIFAR-10); or force lenet|vgg11
+
+# Perturbation method (two orthogonal knobs give every ablation combo)
+noise-mode = "granom"      # granom | uniform | fedsmp
+memorization = true        # Partial Model Memorization on/off
+
+# Noise-scale hyperparameters (NOT DP budgets; see paper)
+epsilon = 10.0             # beta  : scale for trainable coordinates
+epsilon-prime = 100.0      # beta' : scale for stationary coordinates (granom only)
+clip-threshold = 1.0       # C     : L1 clip radius
+grad-threshold = 0.0       # tau   : |grad| <= tau  => stationary (0.0 == exact-zero)
+# Local-SGD gradient-norm clip (optional knob, OFF by default). NOTE: tested on Gadi and it
+# did NOT prevent GraNoM's post-convergence divergence (the collapse is a noise-driven random
+# walk after the model converges, not a gradient blow-up), so it is not the fix. Kept as a
+# tunable. >0 enables L2 gradient-norm clipping per local step.
+grad-clip-norm = 0.0       # max L2 gradient norm per local step (0 = off)
+# GraNoM per-round update clipping (stability). When true, the two-scale Laplace noise is
+# added to the update delta=trained-received and the whole noisy delta is L2-clipped to
+# radius C=clip-threshold before it is sent (return = received + clipped(delta+noise)). This
+# bounds how far the global model can move per round, preventing the post-convergence noise
+# random walk that collapses the default (no-bound) path. false = original full-model noise.
+# DEFAULT false: the paper's mechanism is the full-model path. update-clip is an optional
+# >50-round stability knob (it stabilizes but over-throttles to a lower plateau); the paper
+# operates the full-model path and reports the best global model (best_acc_so_far).
+granom-update-clip = false
+
+# Fed-SMP baseline knobs (only used when noise-mode = fedsmp)
+# NOTE: Fed-SMP perturbs the UPDATE (not the model), so it has no per-round
+# model-norm bound like granom/uniform. sigma must be small or the model
+# random-walks to divergence. Tune per the sweep; 1.0 explodes on LeNet/MNIST.
+fedsmp-ratio = 0.1         # top-k sparsification ratio q (fraction of coords kept)
+fedsmp-sigma = 0.001       # Gaussian noise multiplier (std = sigma * clip)
+
+# Attack-evaluation cost controls (keep smoke tests fast)
+moia-iterations = 1000     # MoIA optimization steps per class (lower = faster/cheaper)
+attack-every = 1           # run MeIA+MoIA every N rounds (higher = cheaper)
+# A3 / index-inference (masking) attack: per-round, cheap. When true, each client
+# scores an adversary trying to label coords trainable(b) vs stationary(b') from the
+# inter-round change of the sent updates (AUC vs the true mask; ~0.5 = concealed).
+attack-a3 = false
+
+# Reproducibility / bookkeeping
+seed = 42
+client-count = 10          # #clients; set from the PBS CLIENTS var, folded into the run dir name
+results-tag = ""           # optional label folded into the output directory name
+
+[tool.flwr.federations]
+default = "local-sim-gpu"
+
+[tool.flwr.federations.local-simulation]
+options.num-supernodes = 10
+options.backend.client-resources.num-cpus = 2 # each ClientApp assumes to use 2CPUs
+options.backend.client-resources.num-gpus = 0.0 # ratio of VRAM a ClientApp has access to
+
+[tool.flwr.federations.local-sim-gpu]
+options.num-supernodes = 10
+options.backend.client-resources.num-cpus = 2
+options.backend.client-resources.num-gpus = 0.1
+
+# 10-client and 50-client federations for the experiment matrix.
+# Select on the CLI: `flwr run . local-sim-gpu-10` / `... local-sim-gpu-50`.
+[tool.flwr.federations.local-sim-gpu-10]
+options.num-supernodes = 10
+options.backend.client-resources.num-cpus = 2
+options.backend.client-resources.num-gpus = 0.1
+
+[tool.flwr.federations.local-sim-gpu-50]
+options.num-supernodes = 50
+options.backend.client-resources.num-cpus = 2
+options.backend.client-resources.num-gpus = 0.1
+
+# Smoke-test federation: tiny, fast, CPU-friendly.
+[tool.flwr.federations.local-smoke]
+options.num-supernodes = 4
+options.backend.client-resources.num-cpus = 1
+options.backend.client-resources.num-gpus = 0.0

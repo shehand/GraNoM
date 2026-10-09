@@ -1,0 +1,32 @@
+Evaluation-Only License Agreement
+
+Copyright (c) Shehan Edirimannage 2025
+
+Permission is hereby granted to any individual or entity (“User”) to download, install, and use this software (“Software”) solely for the purpose of private, personal evaluation and non-commercial testing.
+
+Permitted Use:
+- Users may evaluate and benchmark the Software to compare its performance with other methods or tools, including for academic research or publications, provided:
+  - The Software itself is not used directly in any publication or released derivative.
+  - The implementation details, source code, or model artifacts are not reproduced, repurposed, or shared.
+
+Restrictions:
+The following uses of the Software are strictly prohibited:
+- Redistribution of the Software, in whole or in part, with or without modification, through any means or medium.
+- Modification, reverse engineering, or incorporation of the Software into other software, systems, or publications.
+- Commercial use in any form, including use in for-profit organizations, services, or tools.
+- Use of the Software’s source code, models, or implementation details in academic, scientific, or research publications, including but not limited to:
+  - Inclusion in papers, theses, dissertations, or technical reports.
+  - Use in replicating or extending this implementation.
+  - Uploading or linking the code to public repositories or collaborative platforms.
+- Use in production environments or in support of any operational or revenue-generating activities.
+
+Termination:
+This license is automatically terminated upon any violation of the conditions herein. Upon termination, the User must immediately cease use of the Software and destroy all copies in their possession or control.
+
+No Warranty:
+The Software is provided “AS IS”, without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, or non-infringement. In no event shall the authors or copyright holders be liable for any claim, damages, or other liability arising from or in connection with the Software.
+
+Licensing and Exceptions:
+For commercial licensing, academic/research use of the code, redistribution rights, or other special permissions, please contact the developer.
+
+Version 1.0 — Effective August 4, 2025
